@@ -14,7 +14,215 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      calendar_spaces: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          open_code: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          open_code: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          open_code?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          room_id: string
+          text: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          room_id: string
+          text: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          room_id?: string
+          text?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          open_code: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          open_code: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          open_code?: string
+        }
+        Relationships: []
+      }
+      notices: {
+        Row: {
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          pinned: boolean
+          title: string
+        }
+        Insert: {
+          author_name: string
+          content: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          title: string
+        }
+        Update: {
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          title?: string
+        }
+        Relationships: []
+      }
+      schedules: {
+        Row: {
+          calendar_id: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          title: string
+        }
+        Insert: {
+          calendar_id: string
+          created_at?: string
+          date: string
+          description?: string | null
+          id?: string
+          title: string
+        }
+        Update: {
+          calendar_id?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedules_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_joined_calendars: {
+        Row: {
+          calendar_id: string
+          user_id: string
+        }
+        Insert: {
+          calendar_id: string
+          user_id: string
+        }
+        Update: {
+          calendar_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_joined_calendars_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_joined_rooms: {
+        Row: {
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_joined_rooms_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          avatar: string | null
+          created_at: string
+          id: string
+          is_admin: boolean
+          name: string
+        }
+        Insert: {
+          avatar?: string | null
+          created_at?: string
+          id: string
+          is_admin?: boolean
+          name: string
+        }
+        Update: {
+          avatar?: string | null
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

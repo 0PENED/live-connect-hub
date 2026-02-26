@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Shield, User } from "lucide-react";
+import { Plus, Trash2, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ProfilePage() {
@@ -14,17 +14,22 @@ export default function ProfilePage() {
   const [newId, setNewId] = useState("");
   const [newName, setNewName] = useState("");
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return;
-    updateProfile(name.trim(), avatar.trim() || undefined);
+    await updateProfile(name.trim(), avatar.trim() || undefined);
     toast.success("Profile updated");
   };
 
-  const handleCreateUser = () => {
-    const err = createUser(newId, newName);
+  const handleCreateUser = async () => {
+    const err = await createUser(newId, newName);
     if (err) { toast.error(err); return; }
     toast.success("Account created");
     setNewId(""); setNewName(""); setCreateOpen(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteUser(id);
+    toast.success("Account deleted");
   };
 
   return (
@@ -44,7 +49,7 @@ export default function ProfilePage() {
             <div>
               <p className="font-semibold text-foreground flex items-center gap-1.5">
                 {currentUser?.name}
-                {currentUser?.isAdmin && <Shield className="h-4 w-4 text-primary" />}
+                {currentUser?.is_admin && <Shield className="h-4 w-4 text-primary" />}
               </p>
               <p className="text-sm text-muted-foreground">{currentUser?.id}</p>
             </div>
@@ -63,7 +68,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Admin: Manage Users */}
-      {currentUser?.isAdmin && (
+      {currentUser?.is_admin && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-foreground">Manage Users</h2>
@@ -97,14 +102,14 @@ export default function ProfilePage() {
                   <div>
                     <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
                       {user.name}
-                      {user.isAdmin && <Shield className="h-3 w-3 text-primary" />}
+                      {user.is_admin && <Shield className="h-3 w-3 text-primary" />}
                     </p>
                     <p className="text-xs text-muted-foreground">{user.id}</p>
                   </div>
                 </div>
-                {!user.isAdmin && (
+                {!user.is_admin && (
                   <button
-                    onClick={() => { deleteUser(user.id); toast.success("Account deleted"); }}
+                    onClick={() => handleDelete(user.id)}
                     className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground hover:text-destructive transition-all"
                   >
                     <Trash2 className="h-4 w-4" />

@@ -59,7 +59,7 @@ export function AppSidebar() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-accent-foreground truncate flex items-center gap-1.5">
               {currentUser?.name}
-              {currentUser?.isAdmin && <Shield className="h-3 w-3 text-primary" />}
+              {currentUser?.is_admin && <Shield className="h-3 w-3 text-primary" />}
             </p>
             <p className="text-xs text-muted-foreground truncate">{currentUser?.id}</p>
           </div>

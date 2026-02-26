@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { CalendarSpace, Schedule } from "@/types";
-import { getStorage, setStorage } from "@/lib/storage";
+import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,14 +11,27 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 
+interface CalendarSpace {
+  id: string;
+  name: string;
+  open_code: string;
+}
+
+interface Schedule {
+  id: string;
+  calendar_id: string;
+  title: string;
+  date: string;
+  description: string | null;
+}
+
 export default function CalendarPage() {
   const { currentUser } = useAuth();
-  const [calendars, setCalendars] = useState<CalendarSpace[]>(() => getStorage("livep_calendars", []));
-  const [joinedIds, setJoinedIds] = useState<string[]>(() =>
-    getStorage(`livep_cal_joined_${currentUser?.id}`, [])
-  );
+  const [calendars, setCalendars] = useState<CalendarSpace[]>([]);
+  const [joinedIds, setJoinedIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -30,56 +42,75 @@ export default function CalendarPage() {
   const [schedDesc, setSchedDesc] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => setStorage("livep_calendars", calendars), [calendars]);
-  useEffect(() => setStorage(`livep_cal_joined_${currentUser?.id}`, joinedIds), [joinedIds, currentUser]);
+  const fetchCalendars = useCallback(async () => {
+    const { data } = await supabase.from("calendar_spaces").select("*").order("created_at");
+    if (data) setCalendars(data);
+  }, []);
+
+  const fetchJoinedIds = useCallback(async () => {
+    if (!currentUser) return;
+    const { data } = await supabase.from("user_joined_calendars").select("calendar_id").eq("user_id", currentUser.id);
+    if (data) setJoinedIds(data.map((d) => d.calendar_id));
+  }, [currentUser]);
+
+  const fetchSchedules = useCallback(async () => {
+    if (!selectedId) return;
+    const { data } = await supabase.from("schedules").select("*").eq("calendar_id", selectedId).order("date");
+    if (data) setSchedules(data);
+  }, [selectedId]);
+
+  useEffect(() => { fetchCalendars(); fetchJoinedIds(); }, [fetchCalendars, fetchJoinedIds]);
+  useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
 
   const joinedCalendars = calendars.filter((c) => joinedIds.includes(c.id));
   const selectedCal = calendars.find((c) => c.id === selectedId);
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
-  const daySchedules = selectedCal?.schedules.filter((s) => s.date === dateStr) ?? [];
+  const daySchedules = schedules.filter((s) => s.date === dateStr);
+  const scheduleDates = schedules.map((s) => new Date(s.date + "T00:00:00"));
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim() || !newCode.trim()) { setError("Name and code required"); return; }
-    const cal: CalendarSpace = { id: crypto.randomUUID(), name: newName.trim(), openCode: newCode.trim(), schedules: [] };
-    setCalendars((p) => [...p, cal]);
-    setJoinedIds((p) => [...p, cal.id]);
-    setSelectedId(cal.id);
+    const { data, error: err } = await supabase.from("calendar_spaces").insert({ name: newName.trim(), open_code: newCode.trim() }).select().single();
+    if (err || !data) { setError(err?.message || "Error"); return; }
+    await supabase.from("user_joined_calendars").insert({ user_id: currentUser!.id, calendar_id: data.id });
+    await fetchCalendars(); await fetchJoinedIds();
+    setSelectedId(data.id);
     setNewName(""); setNewCode(""); setError(""); setCreateOpen(false);
   };
 
-  const handleJoin = () => {
-    const cal = calendars.find((c) => c.openCode === joinCode.trim());
+  const handleJoin = async () => {
+    const cal = calendars.find((c) => c.open_code === joinCode.trim());
     if (!cal) { setError("Invalid code"); return; }
     if (joinedIds.includes(cal.id)) { setError("Already joined"); return; }
-    setJoinedIds((p) => [...p, cal.id]);
+    await supabase.from("user_joined_calendars").insert({ user_id: currentUser!.id, calendar_id: cal.id });
+    await fetchJoinedIds();
     setSelectedId(cal.id);
     setJoinCode(""); setError(""); setJoinOpen(false);
   };
 
-  const addSchedule = () => {
+  const addSchedule = async () => {
     if (!schedTitle.trim() || !selectedCal || !dateStr) return;
-    const sched: Schedule = { id: crypto.randomUUID(), title: schedTitle.trim(), date: dateStr, description: schedDesc.trim() || undefined };
-    setCalendars((prev) =>
-      prev.map((c) => (c.id === selectedCal.id ? { ...c, schedules: [...c.schedules, sched] } : c))
-    );
+    await supabase.from("schedules").insert({
+      calendar_id: selectedCal.id,
+      title: schedTitle.trim(),
+      date: dateStr,
+      description: schedDesc.trim() || null,
+    });
+    await fetchSchedules();
     setSchedTitle(""); setSchedDesc(""); setScheduleOpen(false);
   };
 
-  const deleteSchedule = (schedId: string) => {
-    if (!selectedCal) return;
-    setCalendars((prev) =>
-      prev.map((c) => (c.id === selectedCal.id ? { ...c, schedules: c.schedules.filter((s) => s.id !== schedId) } : c))
-    );
+  const deleteSchedule = async (schedId: string) => {
+    await supabase.from("schedules").delete().eq("id", schedId);
+    await fetchSchedules();
   };
 
-  const deleteCal = (calId: string) => {
-    setCalendars((p) => p.filter((c) => c.id !== calId));
+  const deleteCal = async (calId: string) => {
+    await supabase.from("calendar_spaces").delete().eq("id", calId);
+    await fetchCalendars();
     setJoinedIds((p) => p.filter((id) => id !== calId));
     if (selectedId === calId) setSelectedId(null);
   };
-
-  // Dates that have schedules
-  const scheduleDates = selectedCal?.schedules.map((s) => new Date(s.date + "T00:00:00")) ?? [];
 
   return (
     <div className="flex h-screen">
@@ -88,7 +119,7 @@ export default function CalendarPage() {
         <div className="p-4 border-b border-border">
           <h2 className="font-semibold text-foreground mb-3">Calendars</h2>
           <div className="flex gap-2">
-            {currentUser?.isAdmin && (
+            {currentUser?.is_admin && (
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="flex-1 text-xs"><Plus className="h-3 w-3 mr-1" />Create</Button>
@@ -134,7 +165,7 @@ export default function CalendarPage() {
                   <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{cal.name}</span>
                 </button>
-                {currentUser?.isAdmin && (
+                {currentUser?.is_admin && (
                   <button onClick={() => deleteCal(cal.id)} className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all">
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -168,7 +199,7 @@ export default function CalendarPage() {
                   <h4 className="font-medium text-foreground">
                     {selectedDate ? format(selectedDate, "MMMM d, yyyy") : "Select a date"}
                   </h4>
-                  {currentUser?.isAdmin && selectedDate && (
+                  {currentUser?.is_admin && selectedDate && (
                     <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
                       <DialogTrigger asChild>
                         <Button size="sm"><Plus className="h-3 w-3 mr-1" />Add</Button>
@@ -192,7 +223,7 @@ export default function CalendarPage() {
                         <p className="font-medium text-foreground text-sm">{s.title}</p>
                         {s.description && <p className="text-xs text-muted-foreground mt-1">{s.description}</p>}
                       </div>
-                      {currentUser?.isAdmin && (
+                      {currentUser?.is_admin && (
                         <button onClick={() => deleteSchedule(s.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

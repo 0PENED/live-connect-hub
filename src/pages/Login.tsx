@@ -11,16 +11,19 @@ export default function Login() {
   const [id, setId] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   if (currentUser) {
     navigate("/chat", { replace: true });
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const err = login(id, code);
+    setLoading(true);
+    const err = await login(id, code);
+    setLoading(false);
     if (err) setError(err);
     else navigate("/chat", { replace: true });
   };
@@ -59,9 +62,9 @@ export default function Login() {
 
           {error && <p className="text-destructive text-sm">{error}</p>}
 
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={loading}>
             <Lock className="h-4 w-4 mr-2" />
-            Sign In
+            {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
       </div>
